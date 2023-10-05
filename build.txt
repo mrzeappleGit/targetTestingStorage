@@ -1,0 +1,1 @@
+python -m PyInstaller -F --collect-data sv_ttk --icon=targetIcon.ico --noconsole --clean --onefile --add-data 'targetIcon.ico;.' .\CSVAPP.py ./urlFileChecker.py

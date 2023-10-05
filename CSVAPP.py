@@ -11,6 +11,7 @@ from tkcalendar import DateEntry
 import os
 from sys import platform
 import urlFileChecker
+import babel.numbers
 
 import webbrowser
 from PIL import Image, ImageTk
@@ -149,9 +150,9 @@ class CSVApp:
     def populate_tree(self):
         for _, row in self.df.iterrows():
             title = row.iloc[0]
-            urls = row.iloc[1]
-            live_status = row.iloc[2] if len(row) > 2 else "Unknown"
-            end_date = row.iloc[3] if len(row) > 3 else "N/A"  # Get end date or set to N/A if missing
+            urls = row.iloc[3]
+            live_status = row.iloc[4] if len(row) > 2 else "Unknown"
+            end_date = row.iloc[5] if len(row) > 3 else "N/A"  # Get end date or set to N/A if missing
             
             # Check if the end date has passed and is marked as live
             is_expired = False
@@ -193,8 +194,8 @@ class CSVApp:
         
         for _, row in filtered_data.iterrows():
             title = row.iloc[0]
-            urls = row.iloc[1]
-            live_status = row.iloc[2] if len(row) > 2 else "Unknown"  # Added safety check
+            urls = row.iloc[3]
+            live_status = row.iloc[4] if len(row) > 2 else "Unknown"  # Added safety check
 
             item = self.tree.insert('', tk.END, values=(title, urls, live_status))
             if str(live_status).lower() == "true":
@@ -205,9 +206,9 @@ class CSVApp:
 
     def on_item_click(self, event):
         selected_item = self.tree.selection()[0]
-        urls = self.tree.item(selected_item, "values")[1]
-        live_status = self.tree.item(selected_item, "values")[2]
-        end_date = self.tree.item(selected_item, "values")[3]  # Get the end date from the selected item
+        urls = self.tree.item(selected_item, "values")[3]
+        live_status = self.tree.item(selected_item, "values")[4]
+        end_date = self.tree.item(selected_item, "values")[5]  # Get the end date from the selected item
         
         url_list = urls.split(";")  # Splitting URLs by the delimiter
         
@@ -303,7 +304,7 @@ class CSVApp:
         
     def upload_to_server(self):
         
-        url = urlFileChecker.url
+        url = urlFileChecker.urlUpload
         headers = urlFileChecker.headers
         
         csv_data = self.df.to_csv(index=False)
