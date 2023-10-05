@@ -7,6 +7,7 @@ from io import StringIO
 from datetime import datetime
 import threading
 from tkinter import messagebox
+from tkcalendar import DateEntry
 
 class CSVApp:
     def __init__(self, root):
@@ -29,8 +30,12 @@ class CSVApp:
         self.search_entry.bind("<KeyRelease>", self.filter_titles)
         
         # Create Treeview
-        self.tree = ttk.Treeview(main_frame, columns=('Title', 'URLs', 'Live', 'End Date'), show='headings')
+        self.tree = ttk.Treeview(main_frame, columns=('Title', 'Activity Type', 'GeoTarget', 'URLs', 'Live', 'End Date'), show='headings')
         self.tree.heading('Title', text='Title')
+        self.tree.heading('Activity Type', text='Activity Type')
+        self.tree.column('Activity Type', width=100)  # Adjust the width as needed
+        self.tree.heading('GeoTarget', text='GeoTarget')
+        self.tree.column('GeoTarget', width=80)  # Adjust the width as needed
         self.tree.heading('URLs', text='URLs')  # Hidden from view
         self.tree.heading('Live', text='Live')  # Hidden from view
         self.tree.heading('End Date', text='End Date')  # Hidden from view
@@ -51,13 +56,16 @@ class CSVApp:
         
         self.add_button = ttk.Button(main_frame, text="Add New Entry", command=self.open_add_entry_popup)
         self.add_button.pack(pady=10)
+        self.refresh_button = ttk.Button(main_frame, text="Refresh Data", command=self.refresh_data)
+        self.refresh_button.pack(pady=10)
+
         
         # Fetch and Load CSV data
         self.load_data()
 
 
     def load_data(self):
-        url = "http://localhost:3000/download"
+        url = "http://target.mts-studios.com/download"
         headers = {
             "Authorization": "Bearer 76cdc8491313c226dd2ffac76e1b544d"
         }
@@ -91,7 +99,9 @@ class CSVApp:
                     pass
 
 
-            item = self.tree.insert('', tk.END, values=(title, urls, live_status, end_date))
+            activity_type = row.iloc[1]
+            geo_target = row.iloc[2]
+            item = self.tree.insert('', tk.END, values=(title, activity_type, geo_target, urls, live_status, end_date))
             
             # Visual indication based on live status and expiration
             if is_expired:
@@ -148,23 +158,45 @@ class CSVApp:
         self.popup = tk.Toplevel(self.root)
         self.popup.title("Add New Entry")
 
-        ttk.Label(self.popup, text="Title:").grid(row=0, column=0, padx=10, pady=5)
+        ttk.Label(self.popup, text="Title:").grid(row=0, column=0, padx=10, pady=5, sticky='w')
         self.title_var = tk.StringVar()
-        ttk.Entry(self.popup, textvariable=self.title_var).grid(row=0, column=1, padx=10, pady=5)
+        ttk.Entry(self.popup, textvariable=self.title_var).grid(row=0, column=1, padx=10, pady=5, sticky='e')
+        
+        ttk.Label(self.popup, text="Activity Type (activity or A/B):").grid(row=1, column=0, padx=10, pady=5, sticky='w')        
+        self.activity_var = tk.StringVar()
+        self.activity_combobox = ttk.Combobox(self.popup, textvariable=self.activity_var, values=["activity", "A/B"])
+        self.activity_combobox.grid(row=1, column=1, padx=10, pady=5, sticky='e')
+        self.activity_combobox.set("activity")  # Set a default value. Change to "A/B" if needed
 
-        ttk.Label(self.popup, text="URLs (each on a new line):").grid(row=1, column=0, padx=10, pady=5)
+        ttk.Label(self.popup, text="GeoTarget (True/False):").grid(row=2, column=0, padx=10, pady=5, sticky='w')
+        self.geo_target_var = tk.StringVar()
+        self.geo_target_combobox = ttk.Combobox(self.popup, textvariable=self.geo_target_var, values=["True", "False"])
+        self.geo_target_combobox.grid(row=2, column=1, padx=10, pady=5, sticky='e')
+        self.geo_target_combobox.set("False")  # Set a default value, you can change it to "True" if needed
+
+        ttk.Label(self.popup, text="URLs (each on a new line):").grid(row=3, column=0, padx=10, pady=5, sticky='w')
         self.url_text = tk.Text(self.popup, height=5, width=30)  # Text widget to allow multiple lines
-        self.url_text.grid(row=1, column=1, padx=10, pady=5)
-
-        ttk.Label(self.popup, text="Live (True/False):").grid(row=2, column=0, padx=10, pady=5)
+        self.url_text.grid(row=3, column=1, padx=10, pady=5, sticky='e')
+        
+        ttk.Label(self.popup, text="Live (True/False):").grid(row=4, column=0, padx=10, pady=5, sticky='w')
         self.live_var = tk.StringVar()
-        ttk.Entry(self.popup, textvariable=self.live_var).grid(row=2, column=1, padx=10, pady=5)
-
-        ttk.Label(self.popup, text="End Date (YYYY-MM-DD):").grid(row=3, column=0, padx=10, pady=5)
+        self.live_combobox = ttk.Combobox(self.popup, textvariable=self.live_var, values=["True", "False"])
+        self.live_combobox.grid(row=4, column=1, padx=10, pady=5, sticky='e')
+        self.live_combobox.set("True")  # Set a default value. Change to "False" if needed
+        
+        ttk.Label(self.popup, text="Has End Date:").grid(row=5, column=0, padx=10, pady=5, sticky='w')        
+        self.has_end_date = tk.BooleanVar()  # Variable to store the checkbox state
+        self.check_end_date = ttk.Checkbutton(self.popup, variable=self.has_end_date, command=self.toggle_end_date)
+        self.check_end_date.grid(row=5, column=1, padx=10, pady=5, sticky='e')
+        
+        ttk.Label(self.popup, text="End Date:").grid(row=6, column=0, padx=10, pady=5, sticky='w')
         self.end_date_var = tk.StringVar()
-        ttk.Entry(self.popup, textvariable=self.end_date_var).grid(row=3, column=1, padx=10, pady=5)
+        self.end_date_entry = DateEntry(self.popup, textvariable=self.end_date_var, date_pattern='y-mm-dd')
+        self.end_date_entry.grid(row=6, column=1, padx=10, pady=5, sticky='e')
+        self.end_date_entry.config(state='disabled')  # Disable the entry by default
 
-        ttk.Button(self.popup, text="Submit", command=self.add_new_entry).grid(row=4, column=0, columnspan=2, pady=10)
+
+        ttk.Button(self.popup, text="Submit", command=self.add_new_entry).grid(row=7, column=0, columnspan=2, pady=10)
         
     def add_new_entry(self):
         title = self.title_var.get()
@@ -173,18 +205,17 @@ class CSVApp:
         urls = self.url_text.get("1.0", tk.END).strip().replace("\n", ";")
 
         live_status = self.live_var.get()
+        activity_type = self.activity_var.get()
+        geo_target = self.geo_target_var.get()
         
-        end_date = self.end_date_var.get()
-        # If end date is empty, set it to 'NAN'
-        if not end_date:
-            end_date = 'NAN'
+        end_date = 'NAN' if not self.has_end_date.get() else self.end_date_var.get()
 
         # Adding to the DataFrame
-        new_row = {'title': title, 'url': urls, 'live': live_status, 'end date': end_date}
+        new_row = {'title': title, 'activity': activity_type, 'geo_target': geo_target, 'url': urls, 'live': live_status, 'end date': end_date}
         self.df.loc[len(self.df)] = new_row
 
         # Adding to the Treeview
-        item = self.tree.insert('', tk.END, values=(title, urls, live_status, end_date))
+        item = self.tree.insert('', tk.END, values=(title, activity_type, geo_target, urls, live_status, end_date))
         if str(live_status).lower() == "true":
             self.tree.item(item, tags='live')
         else:
@@ -205,7 +236,7 @@ class CSVApp:
 
         
     def upload_to_server(self):
-        url = "http://localhost:3000/upload"
+        url = "http://target.mts-studios.com/upload"
         headers = {
             "Authorization": "Bearer 76cdc8491313c226dd2ffac76e1b544d"
         }
@@ -224,6 +255,19 @@ class CSVApp:
         thread = threading.Thread(target=self.upload_to_server)
         thread.daemon = True
         thread.start()
+        
+    def refresh_data(self):
+        self.tree.delete(*self.tree.get_children())
+        self.load_data()
+        self.populate_tree()
+        
+    def toggle_end_date(self):
+        if self.has_end_date.get():
+            self.end_date_entry.config(state='normal')
+        else:
+            self.end_date_entry.config(state='disabled')
+            self.end_date_var.set('')
+
 
 if __name__ == "__main__":
     root = tk.Tk()
