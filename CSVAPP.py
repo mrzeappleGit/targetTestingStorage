@@ -8,11 +8,21 @@ from datetime import datetime
 import threading
 from tkinter import messagebox
 from tkcalendar import DateEntry
+import os
+from sys import platform
 
 class CSVApp:
     def __init__(self, root):
         self.root = root
         self.root.title("CSV Title Viewer")
+        def resource_path(relative_path):
+            try:
+            # PyInstaller creates a temp folder and stores path in _MEIPASS
+                base_path = sys._MEIPASS
+            except Exception:
+                base_path = os.path.abspath(".")
+                
+            return os.path.join(base_path, relative_path)
 
         # Main Frame with padding
         main_frame = ttk.Frame(root)
@@ -21,6 +31,8 @@ class CSVApp:
         # Create a frame for search label and entry within the main frame
         search_frame = ttk.Frame(main_frame)
         search_frame.pack(pady=10, fill=tk.X)
+        iconPath = resource_path('targetIcon.ico')
+        self.root.iconbitmap(iconPath)
 
         # Create Search Label and Entry within the frame
         ttk.Label(search_frame, text="Search Title:").pack(side=tk.LEFT, padx=5)  # Packed to the left
