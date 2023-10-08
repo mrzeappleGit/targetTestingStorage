@@ -1,3 +1,5 @@
 /fileHost/backups
 fileHost/target.csv
 urlFileChecker.py
+/__pycache__/
+/build/CSVAPP
