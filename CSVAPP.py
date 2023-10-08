@@ -25,6 +25,16 @@ class CSVApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Target Activity Look Up")
+        self.title_var = tk.StringVar()
+        self.activity_var = tk.StringVar()
+        self.geo_target_var = tk.StringVar()
+        self.url_text = tk.Text()
+        self.live_var = tk.StringVar()
+        self.end_date_var = tk.StringVar()
+        self.has_end_date = tk.BooleanVar()
+        self.business_unit_var = tk.StringVar()
+        self.activity_combobox = None
+
         def resource_path(relative_path):
             try:
             # PyInstaller creates a temp folder and stores path in _MEIPASS
@@ -50,15 +60,36 @@ class CSVApp:
         self.root.iconbitmap(iconPath)
 
         # Create Search Label and Entry within the frame
-        ttk.Label(search_frame, text="Search Title:").pack(side=tk.LEFT, padx=5)  # Packed to the left
+        ttk.Label(search_frame, text="Search:").pack(side=tk.LEFT, padx=5)  # Packed to the left
         self.search_var = tk.StringVar()
         self.search_entry = ttk.Entry(search_frame, textvariable=self.search_var)
         self.search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)  # Packed to the left, next to the label
         self.search_entry.bind("<KeyRelease>", self.filter_titles)
         
+        # Filter comboboxes
+        ttk.Label(search_frame, text="Activity Type:").pack(side=tk.LEFT, padx=5)
+        self.activity_combobox_filter = ttk.Combobox(search_frame, values=["","activity", "A/B"], postcommand=self.filter_treeview)
+        self.activity_combobox_filter.pack(side=tk.LEFT, fill=tk.X, padx=5)
+
+        ttk.Label(search_frame, text="Live:").pack(side=tk.LEFT, padx=5)
+        self.live_combobox_filter = ttk.Combobox(search_frame, values=["","True", "False"], postcommand=self.filter_treeview)
+        self.live_combobox_filter.pack(side=tk.LEFT, fill=tk.X, padx=5)
+
+        ttk.Label(search_frame, text="Business Unit:").pack(side=tk.LEFT, padx=5)
+        self.business_unit_combobox_filter = ttk.Combobox(search_frame, values=["","Corp", "School", "HigherEd", "Sharpen", "Professional"], postcommand=self.filter_treeview)
+        self.business_unit_combobox_filter.pack(side=tk.LEFT, fill=tk.X, padx=5)
+        
+        self.activity_combobox_filter.bind("<<ComboboxSelected>>", lambda e: self.filter_treeview())
+        self.live_combobox_filter.bind("<<ComboboxSelected>>", lambda e: self.filter_treeview())
+        self.business_unit_combobox_filter.bind("<<ComboboxSelected>>", lambda e: self.filter_treeview())
+
+
+        
         # Create Treeview
-        self.tree = ttk.Treeview(main_frame, columns=('Title', 'Activity Type', 'GeoTarget', 'URLs', 'Live', 'End Date'), show='headings')
+        self.tree = ttk.Treeview(main_frame, columns=('Title', 'Activity Type', 'GeoTarget', 'Business Unit', 'URLs', 'Live', 'End Date'), show='headings')
         self.tree.heading('Title', text='Title')
+        self.tree.heading('Business Unit', text='Business Unit')
+        self.tree.column('Business Unit', width=100)  # Adjust width as needed
         self.tree.heading('Activity Type', text='Activity Type')
         self.tree.column('Activity Type', width=100)  # Adjust the width as needed
         self.tree.heading('GeoTarget', text='GeoTarget')
@@ -82,9 +113,13 @@ class CSVApp:
         self.info_text.pack(pady=20, fill=tk.BOTH)
         
         self.add_button = ttk.Button(main_frame, text="Add New Entry", command=self.open_add_entry_popup)
-        self.add_button.pack(pady=10)
+        self.add_button.pack(pady=10, padx=5, side=tk.LEFT)
+        self.edit_button = ttk.Button(main_frame, text="Edit Entry", command=self.open_edit_entry_popup, state=tk.DISABLED)  # Start disabled
+        self.edit_button.pack(pady=10, padx=5, side=tk.LEFT)
         self.refresh_button = ttk.Button(main_frame, text="Refresh Data", command=self.refresh_data)
-        self.refresh_button.pack(pady=10)
+        self.refresh_button.pack(pady=10, padx=5, side=tk.RIGHT)
+        self.clear_filter_btn = ttk.Button(main_frame, text="Clear Filter", command=self.clear_filter)
+        self.clear_filter_btn.pack(pady=10, padx=5, side=tk.RIGHT)  # You can adjust the placement using pack, grid or place as per your layout.
 
         self.setup_menu()
         # Fetch and Load CSV data
@@ -134,25 +169,35 @@ class CSVApp:
         self.dropdown_menu.post(self.menu_button.winfo_rootx(), self.menu_button.winfo_rooty() + self.menu_button.winfo_height())
 
     def load_data(self):
+        # Reset the DataFrame
+        self.df = pd.DataFrame()
+
         url = urlFileChecker.url
         headers = urlFileChecker.headers
         response = requests.get(url, headers=headers)
-    
+        
         # Check for successful response before processing the CSV data
         if response.status_code == 200:
             csv_data = StringIO(response.text)
+            
             self.df = pd.read_csv(csv_data, sep=',')
+
             self.populate_tree()
         else:
             # Handle potential error (e.g., invalid token, server error, etc.)
             print(f"Error {response.status_code}: {response.text}")
 
+
     def populate_tree(self):
+        self.tree.delete(*self.tree.get_children()) 
         for _, row in self.df.iterrows():
-            title = row.iloc[0]
-            urls = row.iloc[3]
-            live_status = row.iloc[4] if len(row) > 2 else "Unknown"
-            end_date = row.iloc[5] if len(row) > 3 else "N/A"  # Get end date or set to N/A if missing
+            title = row['title']
+            urls = row['url']
+            live_status = row['live']
+            end_date = row['end date']
+            activity_type = row['activity']
+            geo_target = row['geo_target']
+            business_unit = row['business_unit']
             
             # Check if the end date has passed and is marked as live
             is_expired = False
@@ -168,7 +213,8 @@ class CSVApp:
 
             activity_type = row.iloc[1]
             geo_target = row.iloc[2]
-            item = self.tree.insert('', tk.END, values=(title, activity_type, geo_target, urls, live_status, end_date))
+            business_unit = row.get('business_unit', '')
+            item = self.tree.insert('', tk.END, values=(title, activity_type, geo_target, business_unit, urls, live_status, end_date))
             
             # Visual indication based on live status and expiration
             if is_expired:
@@ -186,29 +232,103 @@ class CSVApp:
     def filter_titles(self, event):
         search_term = self.search_var.get().lower()
         self.tree.delete(*self.tree.get_children())
-    
-        # Filter data where title, URL or End Date contains the search term
-        filtered_data = self.df[(self.df.iloc[:, 0].str.lower().str.contains(search_term)) |
-                                (self.df.iloc[:, 1].str.lower().str.contains(search_term)) |
-                                (self.df.iloc[:, 3].astype(str).str.lower().str.contains(search_term))]  # Add end date to search
-        
-        for _, row in filtered_data.iterrows():
-            title = row.iloc[0]
-            urls = row.iloc[3]
-            live_status = row.iloc[4] if len(row) > 2 else "Unknown"  # Added safety check
 
-            item = self.tree.insert('', tk.END, values=(title, urls, live_status))
+        # Filter data where title, activity type, URL, or end date contains the search term
+        filtered_data = self.df[
+            (self.df['title'].str.lower().str.contains(search_term)) |
+            (self.df['activity'].str.lower().str.contains(search_term)) |
+            (self.df['geo_target'].astype(str).str.lower().str.contains(search_term)) |
+            (self.df['url'].astype(str).str.lower().str.contains(search_term))
+        ]
+
+        # Apply the combobox filters on top of the title filter
+        activity_type = self.activity_combobox_filter.get()
+        live_status = self.live_combobox_filter.get()
+        business_unit = self.business_unit_combobox_filter.get()
+        filtered_data = self.df[
+            (self.df['title'].str.lower().str.contains(search_term)) |
+            (self.df['activity'].str.lower().str.contains(search_term)) |
+            (self.df['geo_target'].astype(str).str.lower().str.contains(search_term)) |
+            (self.df['url'].astype(str).str.lower().str.contains(search_term))
+        ]
+
+        for _, row in filtered_data.iterrows():
+            title = row['title']
+            urls = row['url']
+            live_status = row['live']
+            end_date = row['end date']
+            activity_type = row['activity']
+            geo_target = row['geo_target']
+            business_unit = row['business_unit']
+
+            item = self.tree.insert('', tk.END, values=(title, activity_type, geo_target, business_unit, urls, live_status, end_date))
+            
             if str(live_status).lower() == "true":
                 self.tree.item(item, tags='live')
             else:
                 self.tree.item(item, tags='not_live')
 
+                
+    def filter_treeview(self):
+        # Get values from the comboboxes
+        activity_type = self.activity_combobox_filter.get()
+        live_status = self.live_combobox_filter.get()
+        business_unit = self.business_unit_combobox_filter.get()
+
+        # Start with a mask that's all True (i.e., include all rows)
+        mask = [True] * len(self.df)
+
+        # Update the mask based on comboboxes' values
+        if activity_type:
+            mask = (mask) & (self.df['activity'] == activity_type)
+        if live_status:
+            # Convert the tag to a Boolean value
+            if live_status == "True":
+                live_boolean = True
+            elif live_status == "False":
+                live_boolean = False
+
+            if live_boolean is not None:
+                mask = (mask) & (self.df['live'] == live_boolean)
+        if business_unit:
+            mask = (mask) & (self.df['business_unit'] == business_unit)
+
+        filtered_data = self.df[mask]
+
+        # Clear the treeview and populate it with filtered data
+        self.tree.delete(*self.tree.get_children())
+        for _, row in filtered_data.iterrows():
+            title = row['title']
+            urls = row['url']
+            live_status_row = row['live']
+            end_date = row['end date']
+            activity_type = row['activity']
+            geo_target = row['geo_target']
+            business_unit = row['business_unit']
+
+            item = self.tree.insert('', tk.END, values=(title, activity_type, geo_target, business_unit, urls, live_status_row, end_date))
+            
+            if str(live_status_row).lower() == "true":
+                self.tree.item(item, tags='live')
+            else:
+                self.tree.item(item, tags='not_live')
+                
+    def clear_filter(self):
+        # Reset combobox selections
+        self.activity_combobox_filter.set('')
+        self.live_combobox_filter.set('')
+        self.business_unit_combobox_filter.set('')
+
+        # Call filter_treeview to reset the treeview data
+        self.filter_treeview()
+
+
 
     def on_item_click(self, event):
         selected_item = self.tree.selection()[0]
-        urls = self.tree.item(selected_item, "values")[3]
-        live_status = self.tree.item(selected_item, "values")[4]
-        end_date = self.tree.item(selected_item, "values")[5]  # Get the end date from the selected item
+        urls = self.tree.item(selected_item, "values")[4]
+        live_status = self.tree.item(selected_item, "values")[5]
+        end_date = self.tree.item(selected_item, "values")[6]  # Get the end date from the selected item
         
         url_list = urls.split(";")  # Splitting URLs by the delimiter
         
@@ -220,23 +340,27 @@ class CSVApp:
         self.info_text.insert(tk.END, "\n")
         self.info_text.insert(tk.END, "Live: " + live_status + "\n")
         self.info_text.insert(tk.END, "End Date: " + end_date)  # Display the end date
+        self.edit_button.config(state=tk.NORMAL)
         
     def open_add_entry_popup(self):
         self.popup = tk.Toplevel(self.root)
         self.popup.title("Add New Entry")
 
         ttk.Label(self.popup, text="Title:").grid(row=0, column=0, padx=10, pady=5, sticky='w')
-        self.title_var = tk.StringVar()
         ttk.Entry(self.popup, textvariable=self.title_var).grid(row=0, column=1, padx=10, pady=5, sticky='e')
         
+        ttk.Label(self.popup, text="Business Unit:").grid(row=7, column=0, padx=10, pady=5, sticky='w')
+        self.business_unit_combobox = ttk.Combobox(self.popup, textvariable=self.business_unit_var, values=["Corp", "School", "HigherEd", "Sharpen", "Professional"])
+        self.business_unit_combobox.grid(row=7, column=1, padx=10, pady=5, sticky='e')
+        self.business_unit_combobox.set("Corp")  # Set a default value
+
+        
         ttk.Label(self.popup, text="Activity Type (activity or A/B):").grid(row=1, column=0, padx=10, pady=5, sticky='w')        
-        self.activity_var = tk.StringVar()
         self.activity_combobox = ttk.Combobox(self.popup, textvariable=self.activity_var, values=["activity", "A/B"])
         self.activity_combobox.grid(row=1, column=1, padx=10, pady=5, sticky='e')
         self.activity_combobox.set("activity")  # Set a default value. Change to "A/B" if needed
 
         ttk.Label(self.popup, text="GeoTarget (True/False):").grid(row=2, column=0, padx=10, pady=5, sticky='w')
-        self.geo_target_var = tk.StringVar()
         self.geo_target_combobox = ttk.Combobox(self.popup, textvariable=self.geo_target_var, values=["True", "False"])
         self.geo_target_combobox.grid(row=2, column=1, padx=10, pady=5, sticky='e')
         self.geo_target_combobox.set("False")  # Set a default value, you can change it to "True" if needed
@@ -246,24 +370,102 @@ class CSVApp:
         self.url_text.grid(row=3, column=1, padx=10, pady=5, sticky='e')
         
         ttk.Label(self.popup, text="Live (True/False):").grid(row=4, column=0, padx=10, pady=5, sticky='w')
-        self.live_var = tk.StringVar()
         self.live_combobox = ttk.Combobox(self.popup, textvariable=self.live_var, values=["True", "False"])
         self.live_combobox.grid(row=4, column=1, padx=10, pady=5, sticky='e')
         self.live_combobox.set("True")  # Set a default value. Change to "False" if needed
         
-        ttk.Label(self.popup, text="Has End Date:").grid(row=5, column=0, padx=10, pady=5, sticky='w')        
-        self.has_end_date = tk.BooleanVar()  # Variable to store the checkbox state
+        ttk.Label(self.popup, text="Has End Date:").grid(row=5, column=0, padx=10, pady=5, sticky='w')        # Variable to store the checkbox state
         self.check_end_date = ttk.Checkbutton(self.popup, variable=self.has_end_date, command=self.toggle_end_date)
         self.check_end_date.grid(row=5, column=1, padx=10, pady=5, sticky='e')
         
         ttk.Label(self.popup, text="End Date:").grid(row=6, column=0, padx=10, pady=5, sticky='w')
-        self.end_date_var = tk.StringVar()
         self.end_date_entry = DateEntry(self.popup, textvariable=self.end_date_var, date_pattern='y-mm-dd')
         self.end_date_entry.grid(row=6, column=1, padx=10, pady=5, sticky='e')
         self.end_date_entry.config(state='disabled')  # Disable the entry by default
 
 
-        ttk.Button(self.popup, text="Submit", command=self.add_new_entry).grid(row=7, column=0, columnspan=2, pady=10)
+        ttk.Button(self.popup, text="Submit", command=self.add_new_entry).grid(row=8, column=0, columnspan=2, pady=10)
+        
+    def open_edit_entry_popup(self):
+        selected_item = self.tree.selection()[0]
+        if not selected_item:
+            return
+
+        data = self.tree.item(selected_item, "values")
+        
+        self.popup = tk.Toplevel(self.root)
+        self.popup.title("Edit Entry")
+
+        ttk.Label(self.popup, text="Title:").grid(row=0, column=0, padx=10, pady=5, sticky='w')
+        ttk.Entry(self.popup, textvariable=self.title_var).grid(row=0, column=1, padx=10, pady=5, sticky='e')
+        
+        ttk.Label(self.popup, text="Activity Type (activity or A/B):").grid(row=1, column=0, padx=10, pady=5, sticky='w')        
+        self.activity_combobox = ttk.Combobox(self.popup, textvariable=self.activity_var, values=["activity", "A/B"])
+        self.activity_combobox.grid(row=1, column=1, padx=10, pady=5, sticky='e')
+        self.activity_combobox.set("activity")  # Set a default value. Change to "A/B" if needed
+
+        ttk.Label(self.popup, text="GeoTarget (True/False):").grid(row=2, column=0, padx=10, pady=5, sticky='w')
+        self.geo_target_combobox = ttk.Combobox(self.popup, textvariable=self.geo_target_var, values=["True", "False"])
+        self.geo_target_combobox.grid(row=2, column=1, padx=10, pady=5, sticky='e')
+        self.geo_target_combobox.set("False")  # Set a default value, you can change it to "True" if needed
+
+        ttk.Label(self.popup, text="URLs (each on a new line):").grid(row=3, column=0, padx=10, pady=5, sticky='w')
+        self.url_text = tk.Text(self.popup, height=5, width=30)  # Text widget to allow multiple lines
+        self.url_text.grid(row=3, column=1, padx=10, pady=5, sticky='e')
+        
+        ttk.Label(self.popup, text="Live (True/False):").grid(row=4, column=0, padx=10, pady=5, sticky='w')
+        self.live_combobox = ttk.Combobox(self.popup, textvariable=self.live_var, values=["True", "False"])
+        self.live_combobox.grid(row=4, column=1, padx=10, pady=5, sticky='e')
+        self.live_combobox.set("True")  # Set a default value. Change to "False" if needed
+        
+        ttk.Label(self.popup, text="Has End Date:").grid(row=5, column=0, padx=10, pady=5, sticky='w')        # Variable to store the checkbox state
+        self.check_end_date = ttk.Checkbutton(self.popup, variable=self.has_end_date, command=self.toggle_end_date)
+        self.check_end_date.grid(row=5, column=1, padx=10, pady=5, sticky='e')
+        
+        ttk.Label(self.popup, text="End Date:").grid(row=6, column=0, padx=10, pady=5, sticky='w')
+        self.end_date_entry = DateEntry(self.popup, textvariable=self.end_date_var, date_pattern='y-mm-dd')
+        self.end_date_entry.grid(row=6, column=1, padx=10, pady=5, sticky='e')
+        self.end_date_entry.config(state='disabled')  # Disable the entry by default
+        
+        ttk.Label(self.popup, text="Business Unit:").grid(row=7, column=0, padx=10, pady=5, sticky='w')
+        self.business_unit_combobox = ttk.Combobox(self.popup, textvariable=self.business_unit_var, values=["Corp", "School", "HigherEd", "Sharpen", "Professional"])
+        self.business_unit_combobox.grid(row=7, column=1, padx=10, pady=5, sticky='e')
+
+        self.title_var.set(data[0])
+        self.activity_var.set(data[1])
+        self.geo_target_var.set(data[2])
+        self.url_text.insert(tk.END, data[4].replace(';', '\n'))
+        self.live_var.set(data[5])
+        self.end_date_var.set(data[6])
+        self.business_unit_var.set(data[3])
+
+        ttk.Button(self.popup, text="Update", command=lambda: self.update_entry(selected_item)).grid(row=8, column=0, columnspan=2, pady=10)
+        
+    def update_entry(self, item):
+        title = self.title_var.get()
+        activity_type = self.activity_var.get()
+        geo_target = self.geo_target_var.get()
+        business_unit = self.business_unit_var.get()
+        urls = self.url_text.get("1.0", tk.END).strip().replace("\n", ";")
+        live_status = self.live_var.get()
+        end_date = 'NAN' if not self.has_end_date.get() else self.end_date_var.get()
+
+        # Update the Treeview
+        self.tree.item(item, values=(title, activity_type, geo_target, business_unit, urls, live_status, end_date))
+
+        # Update the DataFrame
+        index = self.tree.index(item)
+        self.df.iloc[index] = [title, activity_type, geo_target, urls, live_status, end_date, business_unit]
+
+
+        
+        start_upload = messagebox.askyesno("Upload to Server", "Do you want to upload the new entry to the server?")
+        if start_upload:
+            self.start_upload()
+
+        self.popup.destroy()
+
+
         
     def add_new_entry(self):
         title = self.title_var.get()
@@ -274,15 +476,16 @@ class CSVApp:
         live_status = self.live_var.get()
         activity_type = self.activity_var.get()
         geo_target = self.geo_target_var.get()
+        business_unit = self.business_unit_var.get()
         
         end_date = 'NAN' if not self.has_end_date.get() else self.end_date_var.get()
 
         # Adding to the DataFrame
-        new_row = {'title': title, 'activity': activity_type, 'geo_target': geo_target, 'url': urls, 'live': live_status, 'end date': end_date}
+        new_row = {'title': title, 'activity': activity_type, 'geo_target': geo_target, 'url': urls, 'live': live_status, 'end date': end_date, 'business_unit': business_unit}
         self.df.loc[len(self.df)] = new_row
 
         # Adding to the Treeview
-        item = self.tree.insert('', tk.END, values=(title, activity_type, geo_target, urls, live_status, end_date))
+        item = self.tree.insert('', tk.END, values=(title, activity_type, geo_target, business_unit, urls, live_status, end_date))
         if str(live_status).lower() == "true":
             self.tree.item(item, tags='live')
         else:
