@@ -33,6 +33,7 @@ class CSVApp:
         self.end_date_var = tk.StringVar()
         self.has_end_date = tk.BooleanVar()
         self.business_unit_var = tk.StringVar()
+        self.environment_var = tk.StringVar()
         self.activity_combobox = None
 
         def resource_path(relative_path):
@@ -86,7 +87,7 @@ class CSVApp:
 
         
         # Create Treeview
-        self.tree = ttk.Treeview(main_frame, columns=('Title', 'Activity Type', 'GeoTarget', 'Business Unit', 'URLs', 'Live', 'End Date'), show='headings')
+        self.tree = ttk.Treeview(main_frame, columns=('Title', 'Activity Type', 'GeoTarget', 'Business Unit', 'URLs', 'Live', 'End Date', 'Environment'), show='headings')
         self.tree.heading('Title', text='Title')
         self.tree.heading('Business Unit', text='Business Unit')
         self.tree.column('Business Unit', width=100)  # Adjust width as needed
@@ -97,6 +98,9 @@ class CSVApp:
         self.tree.heading('URLs', text='URLs')  # Hidden from view
         self.tree.heading('Live', text='Live')  # Hidden from view
         self.tree.heading('End Date', text='End Date')  # Hidden from view
+        self.tree.heading("Environment", text="Environment")
+        self.tree.column("Environment", width=150)
+        self.tree.column("Environment", width=150)
         self.tree.column('URLs', width=0, stretch=tk.NO)  
         self.tree.column('Live', width=0, stretch=tk.NO)  
         self.tree.column('End Date', width=0, stretch=tk.NO)  # Hide the End Date column
@@ -214,7 +218,8 @@ class CSVApp:
             activity_type = row.iloc[1]
             geo_target = row.iloc[2]
             business_unit = row.get('business_unit', '')
-            item = self.tree.insert('', tk.END, values=(title, activity_type, geo_target, business_unit, urls, live_status, end_date))
+            item = self.tree.insert('', 'end', values=(id, first_name, last_name, email, phone, address, gender, environment))
+
             
             # Visual indication based on live status and expiration
             if is_expired:
@@ -354,6 +359,12 @@ class CSVApp:
         self.business_unit_combobox.grid(row=7, column=1, padx=10, pady=5, sticky='e')
         self.business_unit_combobox.set("Corp")  # Set a default value
 
+
+        ttk.Label(self.popup, text="Environment:").grid(row=8, column=0, padx=10, pady=5, sticky='w')
+        self.environment_combobox = ttk.Combobox(self.popup, textvariable=self.environment_var, values=["QALV", "PROD"])
+        self.environment_combobox.grid(row=8, column=1, padx=10, pady=5, sticky='e')
+        self.environment_combobox.set("QALV")  # Set a default value
+
         
         ttk.Label(self.popup, text="Activity Type (activity or A/B):").grid(row=1, column=0, padx=10, pady=5, sticky='w')        
         self.activity_combobox = ttk.Combobox(self.popup, textvariable=self.activity_var, values=["activity", "A/B"])
@@ -384,7 +395,7 @@ class CSVApp:
         self.end_date_entry.config(state='disabled')  # Disable the entry by default
 
 
-        ttk.Button(self.popup, text="Submit", command=self.add_new_entry).grid(row=8, column=0, columnspan=2, pady=10)
+        ttk.Button(self.popup, text="Submit", command=self.add_new_entry).grid(row=9, column=0, columnspan=2, pady=10)
         
     def open_edit_entry_popup(self):
         selected_item = self.tree.selection()[0]
@@ -430,6 +441,12 @@ class CSVApp:
         ttk.Label(self.popup, text="Business Unit:").grid(row=7, column=0, padx=10, pady=5, sticky='w')
         self.business_unit_combobox = ttk.Combobox(self.popup, textvariable=self.business_unit_var, values=["Corp", "School", "HigherEd", "Sharpen", "Professional"])
         self.business_unit_combobox.grid(row=7, column=1, padx=10, pady=5, sticky='e')
+        
+        ttk.Label(self.popup, text="Environment:").grid(row=9, column=0, padx=10, pady=5, sticky='w')
+        self.environment_combobox = ttk.Combobox(self.popup, textvariable=self.environment_var, values=["QALV", "PROD"])
+        self.environment_combobox.grid(row=9, column=1, padx=10, pady=5, sticky='e')
+        # Assuming data[7] contains the environment info
+        self.environment_var.set(data[7])
 
         self.title_var.set(data[0])
         self.activity_var.set(data[1])
@@ -448,6 +465,7 @@ class CSVApp:
         business_unit = self.business_unit_var.get()
         urls = self.url_text.get("1.0", tk.END).strip().replace("\n", ";")
         live_status = self.live_var.get()
+        environment = self.environment_var.get()
         end_date = 'NAN' if not self.has_end_date.get() else self.end_date_var.get()
 
         # Update the Treeview
@@ -477,15 +495,16 @@ class CSVApp:
         activity_type = self.activity_var.get()
         geo_target = self.geo_target_var.get()
         business_unit = self.business_unit_var.get()
+        environment = self.environment_var.get()
         
         end_date = 'NAN' if not self.has_end_date.get() else self.end_date_var.get()
 
         # Adding to the DataFrame
-        new_row = {'title': title, 'activity': activity_type, 'geo_target': geo_target, 'url': urls, 'live': live_status, 'end date': end_date, 'business_unit': business_unit}
+        new_row = {'title': title, 'activity': activity_type, 'geo_target': geo_target, 'url': urls, 'live': live_status, 'end date': end_date, 'business_unit': business_unit, 'environment': environment}
         self.df.loc[len(self.df)] = new_row
 
         # Adding to the Treeview
-        item = self.tree.insert('', tk.END, values=(title, activity_type, geo_target, business_unit, urls, live_status, end_date))
+        item = self.tree.insert('', tk.END, values=(title, activity_type, geo_target, business_unit, urls, live_status, end_date, environment))
         if str(live_status).lower() == "true":
             self.tree.item(item, tags='live')
         else:
