@@ -6,7 +6,5 @@ build/*
 build/CSVAPP/PYZ-00.toc
 build/CSVAPP/PYZ-00.pyz
 build/CSVAPP/PKG-00.toc
-.gitignore
 build/CSVAPP/CSVAPP.pkg
 build/CSVAPP/base_library.zip
-.gitignore
