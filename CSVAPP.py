@@ -1,3 +1,4 @@
+import subprocess
 import tkinter as tk
 from tkinter import ttk
 import sv_ttk
@@ -128,6 +129,7 @@ class CSVApp:
         self.setup_menu()
         # Fetch and Load CSV data
         self.load_data()
+        is_update_available(currentVersion)
         
     def check_for_updates_at_start(self):
         # Check for updates
@@ -669,6 +671,9 @@ def is_update_available(current_version):
         data = response.json()
         
         latest_version = data.get('version', "")
+        #check to see if latest_version has a V in it and if so remove it before checking if it is greater than current_version
+        if latest_version[0] == 'V':
+            latest_version = latest_version[1:]
         download_url = data.get('download_url', "")
         
         return latest_version > current_version, download_url
