@@ -202,6 +202,7 @@ class CSVApp:
             activity_type = row['activity']
             geo_target = row['geo_target']
             business_unit = row['business_unit']
+            environment = row['environment']
             
             # Check if the end date has passed and is marked as live
             is_expired = False
@@ -218,8 +219,7 @@ class CSVApp:
             activity_type = row.iloc[1]
             geo_target = row.iloc[2]
             business_unit = row.get('business_unit', '')
-            item = self.tree.insert('', 'end', values=(id, first_name, last_name, email, phone, address, gender, environment))
-
+            item = self.tree.insert('', tk.END, values=(title, activity_type, geo_target, business_unit, urls, live_status, end_date, environment))
             
             # Visual indication based on live status and expiration
             if is_expired:
