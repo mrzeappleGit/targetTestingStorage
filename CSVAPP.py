@@ -16,7 +16,7 @@ import babel.numbers
 import webbrowser
 from PIL import Image, ImageTk
 SERVER_URL = "http://webp.mts-studios.com:5000/current_version_target"
-currentVersion = "1.0.0"
+currentVersion = "1.1.0"
 headers = {
     'User-Agent': 'targetLookUp/1.0'
 }
@@ -442,9 +442,9 @@ class CSVApp:
         self.business_unit_combobox = ttk.Combobox(self.popup, textvariable=self.business_unit_var, values=["Corp", "School", "HigherEd", "Sharpen", "Professional"])
         self.business_unit_combobox.grid(row=7, column=1, padx=10, pady=5, sticky='e')
         
-        ttk.Label(self.popup, text="Environment:").grid(row=9, column=0, padx=10, pady=5, sticky='w')
+        ttk.Label(self.popup, text="Environment:").grid(row=8, column=0, padx=10, pady=5, sticky='w')
         self.environment_combobox = ttk.Combobox(self.popup, textvariable=self.environment_var, values=["QALV", "PROD"])
-        self.environment_combobox.grid(row=9, column=1, padx=10, pady=5, sticky='e')
+        self.environment_combobox.grid(row=8, column=1, padx=10, pady=5, sticky='e')
         # Assuming data[7] contains the environment info
         self.environment_var.set(data[7])
 
@@ -456,7 +456,7 @@ class CSVApp:
         self.end_date_var.set(data[6])
         self.business_unit_var.set(data[3])
 
-        ttk.Button(self.popup, text="Update", command=lambda: self.update_entry(selected_item)).grid(row=8, column=0, columnspan=2, pady=10)
+        ttk.Button(self.popup, text="Update", command=lambda: self.update_entry(selected_item)).grid(row=9, column=0, columnspan=2, pady=10)
         
     def update_entry(self, item):
         title = self.title_var.get()
@@ -473,7 +473,7 @@ class CSVApp:
 
         # Update the DataFrame
         index = self.tree.index(item)
-        self.df.iloc[index] = [title, activity_type, geo_target, urls, live_status, end_date, business_unit]
+        self.df.iloc[index] = [title, activity_type, geo_target, urls, live_status, end_date, business_unit, environment]
 
 
         
