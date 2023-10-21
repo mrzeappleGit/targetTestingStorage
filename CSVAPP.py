@@ -17,7 +17,7 @@ import babel.numbers
 import webbrowser
 from PIL import Image, ImageTk
 SERVER_URL = "http://webp.mts-studios.com:5000/current_version_target"
-currentVersion = "1.1.0"
+currentVersion = "1.1.1"
 headers = {
     'User-Agent': 'targetLookUp/1.0'
 }
@@ -130,20 +130,28 @@ class CSVApp:
         # Fetch and Load CSV data
         self.load_data()
         is_update_available(currentVersion)
+        self.periodic_check_for_updates()
+        self.show_changelog()
         
     def check_for_updates_at_start(self):
         # Check for updates
-        isAvailable = is_update_available(currentVersion)
-        boolAvailable = isAvailable[0]
-        if boolAvailable:
+        update_available, download_url, changelog = is_update_available(currentVersion)
+        if update_available:
+            answer = messagebox.askyesno("Update Available", "An update is available. Do you want to download and install it?")
+            if answer:
+                download_success = download_update(download_url, changelog)  # Pass the download URL
+                if download_success:
+                    apply_update()
+                    messagebox.showinfo("Update Successful", "The application was updated successfully. Please restart the application to use the new version.")
+                    self.quit()
             return True
         else:
             return False
         
-    def update_menu_button_text(self):
+    def update_menu_button_text(self, update_available):
         # Set button text based on whether an update is available
         btn_text = "≡"
-        if self.update_available:
+        if update_available:
             btn_text = "! " + btn_text
         
         # Update the text of the already initialized menu_button
@@ -312,8 +320,9 @@ class CSVApp:
             activity_type = row['activity']
             geo_target = row['geo_target']
             business_unit = row['business_unit']
+            environment = row['environment']
 
-            item = self.tree.insert('', tk.END, values=(title, activity_type, geo_target, business_unit, urls, live_status_row, end_date))
+            item = self.tree.insert('', tk.END, values=(title, activity_type, geo_target, business_unit, urls, live_status_row, end_date, environment))
             
             if str(live_status_row).lower() == "true":
                 self.tree.item(item, tags='live')
@@ -336,11 +345,14 @@ class CSVApp:
         urls = self.tree.item(selected_item, "values")[4]
         live_status = self.tree.item(selected_item, "values")[5]
         end_date = self.tree.item(selected_item, "values")[6]  # Get the end date from the selected item
+        title = self.tree.item(selected_item, "values")[0]
         
         url_list = urls.split(";")  # Splitting URLs by the delimiter
         
         # Clear the text widget and add each URL on a new line
         self.info_text.delete(1.0, tk.END)
+        self.info_text.insert(tk.END, "Title: " + title + "\n\n")
+        self.info_text.insert(tk.END, "URLs: \n")
         for url in url_list:
             self.info_text.insert(tk.END, url + "\n")
         
@@ -471,7 +483,7 @@ class CSVApp:
         end_date = 'NAN' if not self.has_end_date.get() else self.end_date_var.get()
 
         # Update the Treeview
-        self.tree.item(item, values=(title, activity_type, geo_target, business_unit, urls, live_status, end_date))
+        self.tree.item(item, values=(title, activity_type, geo_target, business_unit, urls, live_status, end_date, environment))
 
         # Update the DataFrame
         index = self.tree.index(item)
@@ -559,11 +571,11 @@ class CSVApp:
             self.end_date_var.set('')
             
     def check_and_update(self):
-        update_available, download_url = is_update_available(currentVersion)
+        update_available, download_url, changelog = is_update_available(currentVersion)
         if update_available:
             answer = messagebox.askyesno("Update Available", "An update is available. Do you want to download and install it?")
             if answer:
-                download_success = download_update(download_url)  # Pass the download URL
+                download_success = download_update(download_url, changelog)  # Pass the download URL
                 if download_success:
                     apply_update()
                     messagebox.showinfo("Update Successful", "The application was updated successfully. Please restart the application to use the new version.")
@@ -609,22 +621,81 @@ class CSVApp:
         
     def periodic_check_for_updates(self):
         # Check for updates
-        self.update_available = self.check_for_updates_at_start()
+        update_available = self.check_for_updates_at_start()
         
         # Modify the hamburger menu button accordingly
-        self.update_menu_button_text()
+        self.update_menu_button_text(update_available)
         
         # Schedule the next check for 24 hours from now
-        self.after(15*60*60*1000, self.periodic_check_for_updates)
+        self.root.after(15*60*60*1000, self.periodic_check_for_updates)
+        
+    def show_changelog(self):
+        changelog_content = self.get_changelog()
+
+        # If there's no changelog content (due to file not existing or any other error), simply return
+        if not changelog_content:
+            return
+
+        def resource_path(relative_path):
+            try:
+                base_path = sys._MEIPASS
+            except Exception:
+                base_path = os.path.abspath(".")
+            return os.path.join(base_path, relative_path)
+
+        changelog_win = tk.Toplevel(self.root)
+        changelog_win.title("Changelog")
+
+        # Set the icon for the Changelog window
+        iconPath = resource_path('targetIcon.ico')
+        changelog_win.iconbitmap(iconPath)
+
+        # Load and display the image
+        image_path = resource_path('targetIcon.png')
+        logo_image = Image.open(image_path)
+        desired_size = (500, 281)
+        logo_image = logo_image.resize(desired_size, Image.Resampling.LANCZOS)
+        logo_photo = ImageTk.PhotoImage(logo_image)
+        logo_label = ttk.Label(changelog_win, image=logo_photo)
+        logo_label.image = logo_photo
+        logo_label.pack(pady=10)
+
+        # Display the changelog
+        text_widget = tk.Text(changelog_win, wrap=tk.WORD, width=60, height=10)
+        text_widget.insert(tk.END, changelog_content)
+        text_widget.config(state=tk.DISABLED)
+        text_widget.pack(pady=5)
+
+        copyright = ttk.Label(changelog_win, text="©2023 Matthew Thomas Stevens Studios LLC", cursor="hand2", foreground="white", font="TkDefaultFont 10 underline")
+        copyright.pack(pady=5)
+        copyright.bind("<Button-1>", lambda e: webbrowser.open("https://www.matthewstevens.me"))
+
+        changelog_win.geometry('600x500')
+        changelog_win.mainloop()
+
+        # Delete the changelog file after displaying it
+        os.remove('changelog.txt')
+
+
+    def get_changelog(self):
+        try:
+            with open('changelog.txt', 'r') as f:
+                return f.read()
+        except Exception as e:
+            return None
         
         
-def download_update(download_url):
+def download_update(download_url, changelog):
     try:
         # Download the .exe file
         response = requests.get(download_url, stream=True)
         with open('latest_app.exe', 'wb') as file:
             for chunk in response.iter_content(chunk_size=1024):
                 file.write(chunk)
+        if changelog:
+            with open('changelog.txt', 'w') as f:
+                f.write(changelog)
+        
         return True
     except Exception as e:
         print(f"Error downloading update: {e}")
@@ -675,8 +746,9 @@ def is_update_available(current_version):
         if latest_version[0] == 'V':
             latest_version = latest_version[1:]
         download_url = data.get('download_url', "")
+        changelog = data.get('changelog', "")
         
-        return latest_version > current_version, download_url
+        return latest_version > current_version, download_url, changelog
     except Exception as e:
         print(f"Error checking for update: {e}")
         return False, ""
